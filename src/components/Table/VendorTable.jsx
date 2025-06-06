@@ -59,6 +59,8 @@ const VendorTable = () => {
   const [registeredByName, setRegisteredByName] = useState("");
   const [success, setSuccess] = useState(false);
 
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   const fetchRepresentatives = async () => {
     try {
       const response = await api.get('/vendors/representatives/');
@@ -169,36 +171,6 @@ const VendorTable = () => {
   };
 
   const handleShowEditModal = (vendor) => {
-    // Get user info for registered_by
-    const getUserInfo = () => {
-      try {
-        const sessionUser = sessionStorage.getItem('user');
-        if (sessionUser) {
-          const userData = JSON.parse(sessionUser);
-          return userData;
-        }
-
-        const localUser = localStorage.getItem('user');
-        if (localUser) {
-          const userData = JSON.parse(localUser);
-          return userData;
-        }
-
-        return {
-          employee_name: 'default_user',
-          employee_id: null
-        };
-      } catch (error) {
-        console.error('Error getting user info:', error);
-        return {
-          employee_name: 'error_user',
-          employee_id: null
-        };
-      }
-    };
-
-    const userInfo = getUserInfo();
-    
     setSelectedVendor(vendor);
     setEditForm({
       vendorname: vendor.vendorname,
@@ -207,10 +179,9 @@ const VendorTable = () => {
       website: vendor.website,
       company_phone_number: vendor.company_phone_number,
       address: vendor.address,
-      productcatalog: vendor.productcatalog,
-      iso_files: vendor.iso_files,
-      registered_by: userInfo.employee_id,
-      registered_by_name: userInfo.employee_name
+      productcatalog: vendor.productcatalog, // Set the existing product catalog
+
+
     });
     setShowEditModal(true);
   };
@@ -280,50 +251,30 @@ const VendorTable = () => {
   const handleEditSubmit = async (e) => {
     e.preventDefault();
     try {
-      setLoading(true);
-      setError(null);
-      setSuccess(false);
-
-      const formData = new FormData();
-      
-      // Append all fields to FormData
-      Object.keys(editForm).forEach(key => {
-        if (key === 'productcatalog' && editForm[key]) {
-          formData.append(key, editForm[key]);
-        } else if (key === 'iso' && editForm[key]) {
-          formData.append(key, editForm[key]);
-        } else if (key !== 'productcatalog' && key !== 'iso') {
-          formData.append(key, editForm[key]);
-        }
+      const response = await fetch(`https://my.vivionix.com/vendors/update/${selectedVendor.vendor_id}/`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(editForm),
       });
 
-      const response = await api.put(
-        `/vendors/update/${selectedVendor.vendor_id}/`,
-        formData,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data'
-          }
-        }
+      if (!response.ok) {
+        throw new Error('Failed to update vendor');
+      }
+
+      // Update the vendors list with the edited vendor
+      setVendors(prevVendors =>
+        prevVendors.map(vendor =>
+          vendor.vendor_id === selectedVendor.vendor_id
+            ? { ...vendor, ...editForm }
+            : vendor
+        )
       );
 
-      if (response.data) {
-        setSuccess(true);
-        // Update the vendors list with the edited vendor
-        setVendors(prevVendors =>
-          prevVendors.map(vendor =>
-            vendor.vendor_id === selectedVendor.vendor_id
-              ? { ...vendor, ...response.data }
-              : vendor
-          )
-        );
-        handleCloseEditModal();
-      }
+      handleCloseEditModal();
     } catch (err) {
-      setError(err.response?.data?.detail || err.message || 'Failed to update vendor');
-      setSuccess(false);
-    } finally {
-      setLoading(false);
+      setError(err.message);
     }
   };
 
@@ -741,27 +692,26 @@ const VendorTable = () => {
 
   const handleRefresh = async () => {
     try {
-      setLoading(true);
-      setError(null);
+      setIsRefreshing(true);
       const response = await api.get('/vendors/list_all/');
       if (response.data) {
         setVendors(response.data);
-        // Reset filters
-        setVendorIdSearch("");
-        setFilterFields({ name: "", email: "", type: "" });
         setFilteredVendors(response.data);
         // Fetch representatives after getting vendors
         await fetchRepresentatives();
+        setSuccess(true);
+        setError(null);
       }
     } catch (err) {
-      setError(err.response?.data?.detail || err.message || 'Failed to refresh vendors');
+      setError(err.response?.data?.detail || err.message || 'Failed to refresh data');
+      setSuccess(false);
     } finally {
-      setLoading(false);
+      setIsRefreshing(false);
     }
   };
 
   if (loading) {
-    return null;
+    return <div className="loading">Loading...</div>;
   }
 
   if (error) {
@@ -801,51 +751,35 @@ const VendorTable = () => {
               padding: '6px 10px',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              border: '1px solid #dee2e6',
-              borderRadius: '4px',
-              backgroundColor: '#fff',
-              transition: 'border-color 0.2s ease-in-out'
+              justifyContent: 'center'
             }}
-            className="action-button"
           >
             <RiFilter3Line size={20} />
           </Button>
-          <Button 
-            variant="outline-secondary" 
+          <Button
+            variant="outline-secondary"
             onClick={handleRefresh}
-            disabled={loading}
-            style={{ 
+            style={{
               padding: '6px 10px',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              border: '1px solid #dee2e6',
-              borderRadius: '4px',
-              backgroundColor: '#fff',
-              transition: 'border-color 0.2s ease-in-out'
+              justifyContent: 'center'
             }}
-            className="action-button"
             title="Refresh Table"
+            disabled={isRefreshing}
           >
-            <RiRefreshLine size={20} className={loading ? 'rotating' : ''} />
+            <RiRefreshLine
+              size={20}
+              style={{
+                animation: isRefreshing ? 'spin 1s linear infinite' : 'none',
+                transformOrigin: 'center'
+              }}
+            />
           </Button>
           {showSearch && (
             <div
               ref={filterFormRef}
               className="filter-dropdown"
-              style={{
-                position: 'absolute',
-                top: '100%',
-                right: '0',
-                zIndex: 1000,
-                backgroundColor: '#fff',
-                border: '1px solid #dee2e6',
-                borderRadius: '4px',
-                padding: '1rem',
-                marginTop: '0.5rem',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-              }}
             >
               <input
                 type="text"
@@ -889,10 +823,8 @@ const VendorTable = () => {
               <th scope="col">Phone</th>
               <th scope="col">Type</th>
               <th scope="col">Website</th>
-              <th scope="col">Address</th>
-              <th scope="col">Registered By</th>
               <th scope="col">Product Catalog</th>
-              <th scope="col">ISO</th>
+              <th scope="col">IOS</th>
               <th scope="col">Representative</th>
               <th scope="col">Actions</th>
             </tr>
@@ -900,7 +832,7 @@ const VendorTable = () => {
           <tbody>
             {currentVendors.length === 0 ? (
               <tr>
-                <td colSpan="12" style={{ textAlign: 'center' }}>No vendors found</td>
+                <td colSpan="10" style={{ textAlign: 'center' }}>No vendors found</td>
               </tr>
             ) : (
               currentVendors.map((vendor) => (
@@ -949,11 +881,9 @@ const VendorTable = () => {
                         {vendor.website}
                       </a>
                     ) : (
-                      <span className="text-muted">No Website</span>
+                      'No Website'
                     )}
                   </td>
-                  <td>{vendor.address || <span className="text-muted">No Address</span>}</td>
-                  <td>{vendor.registered_by_name || <span className="text-muted">Not Available</span>}</td>
                   <td>
                     {vendor.productcatalog ? (
                       <a
@@ -965,21 +895,21 @@ const VendorTable = () => {
                         {vendor.productcatalog.split('/').pop()}
                       </a>
                     ) : (
-                      <span className="text-muted">No Catalog</span>
+                      'No Product Catalog'
                     )}
                   </td>
                   <td>
-                    {vendor.iso_files ? (
+                    {vendor.iso ? (
                       <a
-                        href={vendor.iso_files}
+                        href={vendor.iso}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-primary"
                       >
-                        {vendor.iso_files.split('/').pop()}
+                        {vendor.iso.split('/').pop()}
                       </a>
                     ) : (
-                      <span className="text-muted">No ISO</span>
+                      'No ISO'
                     )}
                   </td>
                   <td>
@@ -1266,8 +1196,6 @@ const VendorTable = () => {
           <Modal.Title>Edit Vendor</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          {error && <Alert variant="danger" onClose={() => setError(null)} dismissible>{error}</Alert>}
-          {success && <Alert variant="success" onClose={() => setSuccess(false)} dismissible>Vendor updated successfully!</Alert>}
           <Form onSubmit={handleEditSubmit}>
             <Row>
               <Col md={6} className="mb-2">
@@ -1300,17 +1228,13 @@ const VendorTable = () => {
             <Row>
               <Col md={6} className="mb-2">
                 <Form.Label className="form-label small">Company Phone Number</Form.Label>
-                <PhoneInput
-                  country={'pk'}
+                <Form.Control
+                  type="tel"
+                  name="company_phone_number"
                   value={editForm.company_phone_number}
-                  onChange={(value) => handleEditFormChange({ target: { name: 'company_phone_number', value } })}
-                  inputClass="form-control"
-                  containerClass="phone-input-container"
-                  buttonClass="phone-input-button"
-                  inputProps={{
-                    name: 'company_phone_number',
-                    required: true
-                  }}
+                  onChange={handleEditFormChange}
+                  className="form-control form-control-sm"
+                  required
                 />
               </Col>
               <Col md={6} className="mb-2">
@@ -1321,20 +1245,9 @@ const VendorTable = () => {
                   value={editForm.website}
                   onChange={handleEditFormChange}
                   className="form-control form-control-sm"
-                  placeholder="Enter website URL (e.g., https://example.com)"
+                  disabled
+                  readOnly
                 />
-                {editForm.website && (
-                  <small className="text-muted">
-                    <a
-                      href={editForm.website.startsWith('http') ? editForm.website : `https://${editForm.website}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary"
-                    >
-                      Visit Website
-                    </a>
-                  </small>
-                )}
               </Col>
             </Row>
             <Row>
@@ -1346,27 +1259,24 @@ const VendorTable = () => {
                   onChange={handleEditFormChange}
                   className="form-control form-control-sm"
                   required
+                  disabled
+                  readOnly
                 >
                   <option value="">Select Type</option>
-                  <option value="Manufacturer">Manufacturer</option>
+                  <option value="supplier">Supplier</option>
+                  <option value="service">Service Provider</option>
+                  <option value="Maufacturer">Manufacturer</option>
                   <option value="Distributor">Distributor</option>
                   <option value="Importer">Importer</option>
                 </Form.Select>
               </Col>
-              <Col md={6} className="mb-2">
-                <Form.Label className="form-label small">Registered By</Form.Label>
+            </Row>
+            <Row>
+              <Col md={12} className="mb-2">
+                <Form.Label className="form-label small">Product Catalog</Form.Label>
                 <Form.Control
-                  type="text"
-                  name="registered_by_name"
-                  value={editForm.registered_by_name}
+                  type="file"
                   className="form-control form-control-sm"
-                  disabled
-                  readOnly
-                />
-                <input
-                  type="hidden"
-                  name="registered_by"
-                  value={editForm.registered_by}
                 />
               </Col>
             </Row>
@@ -1384,46 +1294,12 @@ const VendorTable = () => {
                 />
               </Col>
             </Row>
-            <Row>
-              <Col md={6} className="mb-2">
-                <Form.Label className="form-label small">Product Catalog</Form.Label>
-                <Form.Control
-                  type="file"
-                  name="productcatalog"
-                  onChange={(e) => setEditForm(prev => ({ ...prev, productcatalog: e.target.files[0] }))}
-                  className="form-control form-control-sm"
-                />
-                {editForm.productcatalog && (
-                  <small className="text-muted">
-                    Current file: {typeof editForm.productcatalog === 'string' 
-                      ? editForm.productcatalog.split('/').pop() 
-                      : editForm.productcatalog.name}
-                  </small>
-                )}
-              </Col>
-              <Col md={6} className="mb-2">
-                <Form.Label className="form-label small">ISO Certificate</Form.Label>
-                <Form.Control
-                  type="file"
-                  name="iso_files"
-                  onChange={(e) => setEditForm(prev => ({ ...prev, iso_files: e.target.files[0] }))}
-                  className="form-control form-control-sm"
-                />
-                {editForm.iso_files && (
-                  <small className="text-muted">
-                    Current file: {typeof editForm.iso_files === 'string' 
-                      ? editForm.iso_files.split('/').pop() 
-                      : editForm.iso_files.name}
-                  </small>
-                )}
-              </Col>
-            </Row>
             <div className="text-end mt-3">
               <Button variant="secondary" onClick={handleCloseEditModal} className="me-2">
                 Cancel
               </Button>
-              <Button variant="primary" type="submit" disabled={loading}>
-                {loading ? 'Saving...' : 'Save Changes'}
+              <Button variant="primary" type="submit">
+                Save Changes
               </Button>
             </div>
           </Form>
@@ -1563,53 +1439,36 @@ const VendorTable = () => {
           </Form>
         </Modal.Body>
       </Modal>
+
+      <style>
+        {`
+          @keyframes spin {
+            from {
+              transform: rotate(0deg);
+            }
+            to {
+              transform: rotate(360deg);
+            }
+          }
+          .filter-dropdown {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: white;
+            padding: 1rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            z-index: 1000;
+            min-width: 200px;
+          }
+          .filter-dropdown input {
+            margin-bottom: 0.5rem;
+          }
+        `}
+      </style>
     </div>
   );
 };
-
-// Update the styles
-const styles = `
-  @keyframes rotate {
-    from {
-      transform: rotate(0deg);
-    }
-    to {
-      transform: rotate(360deg);
-    }
-  }
-
-  .rotating {
-    animation: rotate 1s linear infinite;
-  }
-
-  .action-button {
-    color: #6c757d !important;
-  }
-
-  .action-button:hover {
-    border-color: #0d6efd !important;
-    background-color: #fff !important;
-    color: #6c757d !important;
-  }
-
-  .action-button:focus {
-    box-shadow: none !important;
-    border-color: #0d6efd !important;
-    background-color: #fff !important;
-    color: #6c757d !important;
-  }
-
-  .action-button:disabled {
-    background-color: #fff !important;
-    border-color: #dee2e6 !important;
-    opacity: 0.65;
-    color: #6c757d !important;
-  }
-`;
-
-// Add the styles to the document
-const styleSheet = document.createElement("style");
-styleSheet.innerText = styles;
-document.head.appendChild(styleSheet);
 
 export default VendorTable; 

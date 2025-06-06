@@ -4,7 +4,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import HomePage from './HomePage';
 import Home from './components/Home';
-import Dashboard from './dashboard/Dashboard';
+import Dashboard from './components/Dashboard';
 import EmployeeRegistration from './components/registration/EmployeeRegistrationForm';
 import EmployeeTable from './components/Table/EmployeeTable';
 import CustomerRegistration from './components/registration/CustomerRegistrationForm';
@@ -26,7 +26,8 @@ import SignUpPage from './SignUp';
 import ForgetPassword from './Forgetpassword';
 import OrderCreate from './components/registration/OrderCreate';
 import OrderList from './components/Table/OrderList';
-
+import InvoiceRegistration from './components/registration/InvoiceRegistrationForm';
+import InvoiceTable from './components/Table/InvoiceTable';
 // Store Module Components
 import StockList from './components/Table/StockList';
 import StockLedger from './components/Table/StockLedger';
@@ -70,7 +71,8 @@ function App() {
           <Route path="order-detail-table" element={<OrderDetailTable />} />
           <Route path="customer-product-registration" element={<CustomerProductRegistrationForm />} />
           <Route path="customer-product-table" element={<CustomerProductTable />} />
-          
+          <Route path="invoice-registration" element={<InvoiceRegistration />} />
+          <Route path="invoice-table" element={<InvoiceTable />} />
           {/* Store Module Routes */}
           <Route path="stock-list" element={<StockList />} />
           <Route path="stock-ledger" element={<StockLedger />} />
